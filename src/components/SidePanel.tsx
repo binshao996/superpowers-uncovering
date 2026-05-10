@@ -40,7 +40,10 @@ export default function SidePanel({ node, onClose, allNodes }: SidePanelProps) {
   const afterNode = node.l1.after ? allNodes.find(n => n.id === node.l1.after) : null
 
   return (
-    <div className="w-80 border-l border-gray-200 bg-white overflow-y-auto flex flex-col">
+    <div className="w-full md:w-80 border-l border-gray-200 bg-white overflow-y-auto flex flex-col absolute inset-0 md:relative z-20 md:z-auto">
+      <div className="md:hidden flex justify-end p-2">
+        <button onClick={onClose} className="text-sm text-blue-500">关闭面板</button>
+      </div>
       <div className="p-4 border-b border-gray-100 flex items-start justify-between">
         <div>
           <h3 className="text-lg font-bold text-gray-800">{node.label}</h3>
