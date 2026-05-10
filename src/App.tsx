@@ -9,6 +9,7 @@ export default function App() {
       <Route path="/" element={<GraphView />} />
       <Route path="/article/:skill" element={<FullArticle />} />
       <Route path="/deep-dive" element={<DeepDive />} />
+      <Route path="/deep-dive/:chapterId" element={<DeepDive />} />
     </Routes>
   )
 }
