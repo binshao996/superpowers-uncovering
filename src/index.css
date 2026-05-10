@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
+/* Chapter anchor scroll offset */
+.chapter-anchor {
+  scroll-margin-top: 1rem;
+}
+
 /* Article prose styles */
 article.prose h1 { font-size: 1.75rem; font-weight: 700; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #0f172a; }
-article.prose h2 { font-size: 1.35rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
-article.prose h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #334155; }
+article.prose h2 { font-size: 1.35rem; font-weight: 600; margin-top: 2rem; margin-bottom: 0.5rem; color: #1e293b; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+article.prose h3 { font-size: 1.1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #334155; }
+article.prose h4 { font-size: 1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.5rem; color: #475569; }
 article.prose p { margin-bottom: 0.75rem; line-height: 1.75; color: #334155; }
 article.prose ul, article.prose ol { margin-bottom: 0.75rem; padding-left: 1.5rem; }
 article.prose li { margin-bottom: 0.25rem; line-height: 1.7; color: #334155; }
@@ -18,6 +24,8 @@ article.prose blockquote { border-left: 4px solid #8b5cf6; padding: 0.5rem 1rem;
 article.prose hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.5rem 0; }
 article.prose a { color: #3b82f6; text-decoration: underline; }
 
-/* Page transitions */
-.side-panel-enter { opacity: 0; transform: translateX(20px); }
-.side-panel-enter-active { opacity: 1; transform: translateX(0); transition: opacity 200ms, transform 200ms; }
+/* Mermaid diagram styles */
+article.prose svg {
+  max-width: 100%;
+  height: auto;
+}
