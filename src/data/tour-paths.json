@@ -1,0 +1,26 @@
+[
+  {
+    "id": "quick-overview",
+    "label": "快速概览",
+    "description": "沿过程管控链浏览 6 个核心 skill",
+    "steps": [
+      { "nodeId": "brainstorming", "highlight": "一切从这里开始——想法到设计" },
+      { "nodeId": "writing-plans", "highlight": "设计到可执行计划" },
+      { "nodeId": "executing-plans", "highlight": "计划到代码" },
+      { "nodeId": "subagent-driven-development", "highlight": "并行派发agent执行" },
+      { "nodeId": "requesting-code-review", "highlight": "代码审查确保质量" },
+      { "nodeId": "finishing-a-development-branch", "highlight": "合入完成" }
+    ]
+  },
+  {
+    "id": "deep-methodology",
+    "label": "深入方法论",
+    "description": "聚焦 writing-skills + TDD 体系",
+    "steps": [
+      { "nodeId": "test-driven-development", "highlight": "所有流程的基石" },
+      { "nodeId": "verification-before-completion", "highlight": "证据先于断言" },
+      { "nodeId": "writing-skills", "highlight": "TDD for 文档——核心方法论" },
+      { "nodeId": "using-superpowers", "highlight": "skill的入口和控制中心" }
+    ]
+  }
+]
