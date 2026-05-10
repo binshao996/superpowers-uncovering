@@ -1,125 +1,207 @@
-# 第二章：过程管控链 — 从想法到合入的流水线
+# 第二章：过程管控链 — 从源码看流水线
 
-## 设计哲学
-
-过程管控链是 superpowers 的主干。它的核心设计理念：
-
-1. **确定性路由**：每个 skill 的"终点"明确指定下一个 skill，agent 不会迷失
-2. **逐步缩小自由度**：从 brainstorming（最开放）到 finishing（最确定），每步约束更精确
-3. **隔离设计与执行**：设计的人不执行，执行的人不设计——角色分离
-
-```mermaid
-graph LR
-    BR["brainstorming<br/>想法 → 设计<br/>开放探索"] -->|"输出 spec 文档<br/>调用 writing-plans"| WP["writing-plans<br/>设计 → 计划<br/>结构化分解"]
-    WP -->|"输出 plan 文档<br/>提供两种执行方式"| EX{"选择执行方式"}
-
-    EX -->|"同 session<br/>任务独立"| SDD["subagent-driven-dev<br/>每个任务新 subagent<br/>两阶段审查"]
-    EX -->|"新 session<br/>角色分离"| EP["executing-plans<br/>逐任务执行<br/>检查点审查"]
-
-    SDD --> RCR["requesting-code-review<br/>独立 reviewer agent<br/>spec 合规 → 代码质量"]
-    EP --> RCR
-
-    RCR --> FDB["finishing-a-dev-branch<br/>结构化合入选项<br/>清理工作区"]
-
-    style BR fill:#bfdbfe,stroke:#2563eb
-    style WP fill:#bfdbfe,stroke:#2563eb
-    style SDD fill:#93c5fd,stroke:#2563eb
-    style EP fill:#93c5fd,stroke:#2563eb
-    style RCR fill:#60a5fa,stroke:#2563eb
-    style FDB fill:#3b82f6,stroke:#1e40af
-```
-
-## 每一步的设计精要
-
-### 1. brainstorming — "把想法变成设计"
-
-**核心机制**：`<HARD-GATE>` 标签 —— 在设计被用户批准前，**禁止调用任何实现 skill、禁止写任何代码**。
-
-```
-"What should we build?" ← brainstorming 回答的问题
-"How should we build it?" ← writing-plans 回答的问题
-"Let's build it!"       ← 在这之前不能说的
-```
-
-**为什么需要硬阻断**：AI agent 被训练为"有帮助的"——它听到需求就想立刻写代码。HARD-GATE 是对这种冲动的强制刹车。
-
-**关键设计细节**：
-- 一次只问一个问题、多用选择题——降低用户的认知负担
-- 提出 2-3 种方案及权衡——不给唯一答案，给选择
-- 每节设计确认后再继续——增量验证，避免大方向错误
-- 输出到 `docs/superpowers/specs/YYYY-MM-DD-topic-design.md`——留下可追溯的决策记录
-
-### 2. writing-plans — "把设计变成可执行计划"
-
-**核心机制**：零上下文假设 —— 写计划时假设执行者**完全不了解项目**。
-
-```
-"假设他们是有经验的开发者，但对我们的工具和问题域一无所知。"
-```
-
-**为什么需要零上下文**：因为执行 plan 的可能是另一个 session 的 agent、或者是 subagent——它没有你的上下文。plan 必须是自包含的指令集。
-
-**关键设计细节**：
-- 每个 task 是 2-5 分钟的一个动作（"写失败测试" → "运行验证失败" → "写最小实现" → "运行验证通过" → "提交"）
-- 禁止占位符（TODO、TBD、"适当补充"）——每一步都必须有完整代码和精确命令
-- 文件结构设计先于任务分解——先把模块边界锁定，再拆分任务
-- 输出到 `docs/superpowers/plans/YYYY-MM-DD-feature.md`
-
-### 3. 两种执行方式的设计博弈
-
-```mermaid
-graph TB
-    subgraph same["subagent-driven-development（同 session）"]
-        S1["优点：无上下文切换<br/>优点：不间断执行<br/>优点：subagent 可提问"]
-        S2["代价：多 subagent 调用<br/>代价：两阶段审查开销"]
-    end
-
-    subgraph separate["executing-plans（新 session）"]
-        P1["优点：角色完全分离<br/>优点：上下文零污染<br/>优点：批量执行"]
-        P2["代价：需要 session 切换<br/>代价：检查点人工介入"]
-    end
-```
-
-**选择标准**：
-- 任务独立 + 想快 → subagent-driven-development
-- 任务耦合 + 想隔离 → executing-plans
-
-### 4. subagent-driven-development — "每个任务一个新大脑"
-
-**核心洞察**：上下文污染比上下文重复更危险。
-
-每个 subagent 从零上下文开始——它只看到你为这个任务准备的 prompt。这意味着：
-- 前面任务的决策错误不会传递
-- 每个 agent 的思考是独立的
-- 审查 agent 的视角是新鲜的
-
-**两阶段审查（关键设计）**：
-
-```mermaid
-graph LR
-    IMP["实现 agent<br/>实现 + 自审 + 提交"] --> SPEC["spec 合规审查<br/>代码是否满足 spec？<br/>是否有遗漏？<br/>是否多做了？"]
-    SPEC -->|"通过"| QUALITY["代码质量审查<br/>是否正确？<br/>是否安全？<br/>是否可维护？"]
-    SPEC -->|"不通过"| IMP
-    QUALITY -->|"不通过"| IMP
-
-    style SPEC fill:#fef3c7,stroke:#d97706
-    style QUALITY fill:#dcfce7,stroke:#16a34a
-```
-
-**为什么先 spec 后代码**：先看代码后看 spec → reviewer 会用"代码看起来合理"替代"代码做了该做的事"。必须先建立"该做什么"的基准。
-
-### 5. requesting-code-review — "独立 agent 的独立视角"
-
-- 派遣专门的 code-reviewer agent，不继承实现 agent 的思维过程
-- 模拟人类 code review 的核心价值——不同视角看到不同问题
-
-### 6. finishing-a-development-branch — "给合入提供结构化选项"
-
-不直接问"你想怎么处理这个分支？"而是给出 4 个具体选项：
-- 直接合并 / 创建 PR / 暂存清理 / 放弃
-
-**设计用心**：减少决策疲劳。开放式问题让 agent 和人都容易决策瘫痪。
+过程管控链是 superpowers 的主干——6 个 skill 组成从"想法"到"代码合入"的完整流水线。每个 skill 的终点明确指向下一个。
 
 ---
 
-> **下一章**：[横切约束层](#第三章横切约束层--三个铁律)——如果没有这些约束，上面的流水线每步都会出问题。
+## 1. brainstorming — "想法 → 设计"
+
+### 核心机制：HARD-GATE
+
+这是 brainstorming 最关键的设计。直接看源码：
+
+```xml
+<HARD-GATE>
+Do NOT invoke any implementation skill, write any code, scaffold any project,
+or take any implementation action until you have presented a design and the user
+has approved it. This applies to EVERY project regardless of perceived simplicity.
+</HARD-GATE>
+```
+
+**逐行分析**：
+
+1. **`<HARD-GATE>` 标签**：这不是标准 HTML/XML——是自定义的语义标签。它的效果完全来自于视觉冲击力。全大写 + 尖括号 + 独占一行，让它在纯文本流中像一个"紧急信号"。Agent 在处理文本时对这种强烈的标记会分配更高的注意力权重。
+
+2. **"Do NOT invoke any implementation skill"**：第一个禁令是禁止调用实现 skill。为什么？因为 agent 的本能是"用户说要做 X → 找到能做 X 的 skill → 调用它"。这条禁令拦截了这个本能的第一步。
+
+3. **"write any code, scaffold any project"**：这三个动作覆盖了 agent 最常见的"直接动手"行为——写代码、脚手架项目、采取实现行动。注意它不禁止"读文件""分析项目""画图"——这些探索性动作可以帮 agent 理解上下文。
+
+4. **"until you have presented a design and the user has approved it"**：禁令不是永恒的——有明确的解除条件："设计已呈现 + 用户已批准"。这引出了 brainstorming 的核心流程。
+
+5. **"This applies to EVERY project regardless of perceived simplicity."**：封堵"但是这个项目太简单了"的借口。这句话就是防理性化设计的一个实例——提前预判 agent 可能的借口并直接否定。
+
+### 还有一个反模式声明
+
+```markdown
+## Anti-Pattern: "This Is Too Simple To Need A Design"
+
+Every project goes through this process. A todo list, a single-function utility,
+a config change — all of them. "Simple" projects are where unexamined assumptions
+cause the most wasted work.
+```
+
+**设计意图**：agent 常见的一个理性化是"这个任务太简单，不需要设计"。这段文字直接把这个借口定性为"反模式"——不是"可以接受的选择"，而是"错误做法"。列举了"todo list、单函数工具、配置修改"这些最小粒度的任务——agent 不能说"我的任务不在这个范围"。
+
+### 终结状态：确定性路由
+
+```markdown
+**The terminal state is invoking writing-plans.**
+Do NOT invoke frontend-design, mcp-builder, or any other implementation skill.
+The ONLY skill you invoke after brainstorming is writing-plans.
+```
+
+**分析**：
+- "The terminal state" — 定义了 brainstorming 完成后的唯一出口
+- 显式禁止 frontend-design、mcp-builder — agent 容易跳到这些"看起来相关"的实现 skill
+- "The ONLY skill" — 全大写 ONLY，确保没有歧义
+
+### Checklist：把工作流变成 TodoWrite
+
+```markdown
+You MUST create a task for each of these items and complete them in order:
+
+1. Explore project context — check files, docs, recent commits
+2. Offer visual companion (if topic will involve visual questions)
+3. Ask clarifying questions — one at a time
+4. Propose 2-3 approaches — with trade-offs and your recommendation
+5. Present design — in sections, get user approval after each section
+6. Write design doc — save to docs/superpowers/specs/
+7. Spec self-review — check for placeholders, contradictions, ambiguity, scope
+8. User reviews written spec
+9. Transition to implementation — invoke writing-plans skill
+```
+
+**设计意图**：要求 agent 用 TodoWrite 把每个步骤变成 checklist。这不是"参考列表"——是可追踪的任务。Agent 可以逐个完成和标记，确保没有跳过步骤。
+
+---
+
+## 2. writing-plans — "设计 → 计划"
+
+### 核心机制：零上下文假设
+
+```markdown
+Write comprehensive implementation plans assuming the engineer has zero context
+for our codebase and questionable taste.
+
+Assume they are a skilled developer, but know almost nothing about our toolset
+or problem domain. Assume they don't know good test design very well.
+```
+
+**为什么需要零上下文假设**：因为执行 plan 的可能是另一个 session 的 agent 或 subagent——它没有你的上下文。Plan 必须是自包含的。
+
+"questionable taste" 是一个精心选择的措辞——它告诉 plan 作者"不要假设执行者会做出正确的判断"。因此 plan 必须精确到每个文件路径、每行代码、每个命令。
+
+### 禁止占位符——精确到残酷
+
+```markdown
+## No Placeholders
+
+Every step must contain the actual content an engineer needs. These are **plan failures**:
+- "TBD", "TODO", "implement later", "fill in details"
+- "Add appropriate error handling" / "add validation" / "handle edge cases"
+- "Write tests for the above" (without actual test code)
+- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
+- Steps that describe what to do without showing how
+- References to types, functions, or methods not defined in any task
+```
+
+**分析**：每一条禁令都是针对一个常见的偷懒模式：
+- "TBD/TODO" → "后面再补细节"（永远不会补）
+- "add appropriate error handling" → 听起来合理，但实际上什么都没说
+- "Similar to Task N" → agent 读 task 时可能不按顺序，不能依赖上下文
+- "describe what to do without showing how" → plan 必须有实际代码，不只是"做什么"
+
+### 2-5 分钟的任务粒度
+
+```markdown
+## Bite-Sized Task Granularity
+
+Each step is one action (2-5 minutes):
+- "Write the failing test" - step
+- "Run it to make sure it fails" - step
+- "Implement the minimal code to make the test pass" - step
+- "Run the tests and make sure they pass" - step
+- "Commit" - step
+```
+
+**为什么是 2-5 分钟**：这是 TDD 循环的单位时长。每个步骤足够小到不会出大错，又足够大到有意义。如果 agent 在一个步骤中卡住了，损失最多 5 分钟的工作。
+
+### 执行方式选择——设计博弈
+
+```markdown
+**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task,
+   review between tasks, fast iteration
+
+**2. Inline Execution** - Execute tasks in this session using executing-plans,
+   batch execution with checkpoints
+```
+
+**为什么提供两个选项**：不同的场景适用不同的执行方式。Subagent-driven 适合独立任务，inline 适合需要连续上下文的任务。给用户选择权而不是替用户决定。
+
+---
+
+## 3. subagent-driven-development — "每任务新大脑"
+
+### 核心原则
+
+```markdown
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality)
+= high quality, fast iteration
+
+**Continuous execution:** Do not pause to check in with your human partner between
+tasks. Execute all tasks from the plan without stopping.
+```
+
+**分析**：
+- "Fresh subagent per task" — 每个 task 一个新的 subagent，从零上下文开始。这不是浪费——上下文污染比上下文重复更危险
+- "spec then quality" — 两阶段审查有严格的顺序：先 spec 合规，后代码质量。顺序不能反
+- "Do not pause" — 要求连续执行，不给用户发"我完成了任务 3，要继续吗？"——因为那是一种浪费用户时间的理性化
+
+### 两阶段审查源码证据
+
+```markdown
+[Dispatch spec compliance reviewer]
+Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
+
+[Dispatch code quality reviewer]
+Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+```
+
+**Spec 审查先于代码审查的源码证据**：在 skill 的 red flags 中明确写道：
+
+```markdown
+**Never:**
+- Start code quality review before spec compliance is ✅ (wrong order)
+```
+
+**为什么要这样排序**：如果先看代码再看 spec → reviewer 会用"代码看起来合理"替代"代码做了该做的事"。必须先建立"该做什么"的基准（spec 审查），再检查"做得对不对"（代码审查）。
+
+---
+
+## 4. executing-plans — "新 session 执行"
+
+```markdown
+Execute the implementation plan task-by-task in a separate session.
+```
+
+**关键设计：为什么是 separate session**：和 subagent-driven-development 的区别在于角色分离。写 plan 的人 ≠ 执行 plan 的人。执行者从零上下文开始，必须严格按 plan 的指令行动。这模拟了软件开发中"设计者"和"实现者"的分离。
+
+## 5. requesting-code-review — "独立审查"
+
+```markdown
+Dispatch a specialized code-reviewer agent to check that the work meets
+requirements and code quality standards.
+```
+
+## 6. finishing-a-development-branch — "结构化终局"
+
+```markdown
+Guide completion of development work: merge, PR, or cleanup.
+Provide structured options for closing out the branch.
+```
+
+**设计用心**：不直接问"你想怎么处理这个分支？"，而是给出明确的结构化选项——减少决策疲劳。
+
+---
+
+> **下一章**：[横切约束层](#第三章横切约束层--三个铁律)——如果没有 TDD、verification、debugging 这三个横切约束，上面的流水线每一步都可能出质量问题。

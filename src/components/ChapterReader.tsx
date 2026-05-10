@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -24,30 +24,12 @@ mermaid.initialize({
   },
 })
 
-function MermaidDiagram({ chart, id }: { chart: string; id: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!containerRef.current) return
-    mermaid.render(`${id}-svg`, chart).then(({ svg }) => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = svg
-      }
-    }).catch(() => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = '<p class="text-red-500 text-sm">图表渲染失败</p>'
-      }
-    })
-  }, [chart, id])
-
-  return <div ref={containerRef} className="my-6 flex justify-center overflow-x-auto" />
-}
-
 export default function ChapterReader() {
   const [contents, setContents] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [activeChapter, setActiveChapter] = useState('00-preface')
   const chapterRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const contentContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     Promise.all(
@@ -64,6 +46,23 @@ export default function ChapterReader() {
     })
   }, [])
 
+  // Run mermaid on all diagrams after content renders
+  useEffect(() => {
+    if (loading || !contentContainerRef.current) return
+    // Small delay to ensure DOM is settled
+    const timer = setTimeout(async () => {
+      try {
+        await mermaid.run({
+          nodes: contentContainerRef.current!.querySelectorAll('.mermaid'),
+        })
+      } catch (e) {
+        console.error('Mermaid run error:', e)
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [loading, contents])
+
+  // Track active chapter on scroll
   useEffect(() => {
     const handleScroll = () => {
       const offsets = chapters.map(ch => {
@@ -83,12 +82,6 @@ export default function ChapterReader() {
   const scrollToChapter = (id: string) => {
     chapterRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
-
-  const mermaidIdRef = useRef(0)
-  const renderMermaid = useCallback((chart: string) => {
-    mermaidIdRef.current += 1
-    return <MermaidDiagram chart={chart} id={`mermaid-${mermaidIdRef.current}`} />
-  }, [])
 
   if (loading) {
     return (
@@ -125,7 +118,7 @@ export default function ChapterReader() {
       </aside>
 
       {/* Content */}
-      <main className="flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8 md:py-12">
+      <main ref={contentContainerRef} className="flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8 md:py-12">
         {chapters.map((ch, idx) => (
           <div key={ch.id}>
             <div
@@ -140,7 +133,8 @@ export default function ChapterReader() {
                     const match = /language-(\w+)/.exec(className || '')
                     const codeStr = String(children).replace(/\n$/, '')
                     if (match && match[1] === 'mermaid') {
-                      return renderMermaid(codeStr)
+                      // Render as raw mermaid element — mermaid.run() will process it
+                      return <div className="mermaid my-6 flex justify-center">{codeStr}</div>
                     }
                     const isInline = !match
                     return isInline ? (
