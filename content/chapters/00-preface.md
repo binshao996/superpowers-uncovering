@@ -6,79 +6,62 @@
 
 1. 直接写代码 — 没有设计、没有计划、没有测试
 2. 写到一半发现方向错了 — 删掉重来
-3. 代码能跑了 — AI 说"完成了"
+3. 代码能跑了 — AI 说"完成了"，但没有运行过验证
 4. 你一试 — 崩溃了
 
 **这不是 AI 能力的问题。这是缺少工作流程约束。**
 
-## 为什么 AI 需要 Skill
-
-AI agent 被训练为"有帮助的"——它天然想做事情。但这意味着它容易：
-
-- **跳过设计直奔实现**：因为写代码比问问题更快
-- **声称完成而不验证**：因为"看起来应该可以了"
-- **遇到 bug 就猜原因修症状**：因为这样更快（短期）
-- **找借口绕过规则**：因为"这次情况特殊"
-
-这些不是 AI 的错——是 AI 在设计时没有被约束。就像你不会让一个新入职的工程师在没有 code review、没有 CI、没有设计评审的情况下提交代码一样。
-
 ## Skill 是什么
 
-**Skill 是给 AI agent 的行为约束程序。** 它不是"参考文档"，它是：
+**Skill 是给 AI agent 的行为约束程序。** 不是"建议"，不是"参考文档"。
 
-| 不是 | 是 |
-|------|---|
-| "建议你这样做" | "你必须这样做" |
-| 建议性的指引 | 铁律 + 防绕过设计 |
-| 给人读的文档 | 给 AI agent 读并**执行**的程序 |
-| 一次性提示词 | 持久化、可被发现、可迭代的约束 |
+它的本质和代码一样——有严格的执行逻辑、有防绕过设计、用 TDD 方法测试。
 
-## Superpowers 体系一览
+## 源码目录总览
 
-Superpowers 提供了 14 个相互协作的 skill，覆盖了从"我有一个想法"到"代码合入主分支"的完整流程。它们不是 14 个独立工具，而是一个**四层架构的精妙系统**：
+在开始之前，先看全局。以下是 superpowers 插件（v5.1.0）中 14 个 skill 的完整目录结构：
 
-```mermaid
-graph TB
-    subgraph meta["元技能层 - 创建 Skill 的方法论"]
-        WS["writing-skills<br/>用 TDD 方法创建 skill"]
-    end
-
-    subgraph entry["入口层 - 流量控制器"]
-        US["using-superpowers<br/>每条消息必先检查 skill"]
-    end
-
-    subgraph process["过程管控层 - 主线流水线"]
-        BR["brainstorming"] --> WP["writing-plans"]
-        WP --> EP["executing-plans"]
-        EP --> SDD["subagent-driven-development"]
-        SDD --> RCR["requesting-code-review"]
-        RCR --> FDB["finishing-a-development-branch"]
-    end
-
-    subgraph cross["横切约束层 - 嵌入每一步"]
-        TDD["test-driven-development<br/>写代码前必先写失败测试"]
-        VBC["verification-before-completion<br/>声称完成前必先运行验证"]
-        SD["systematic-debugging<br/>修复前必先追根因"]
-    end
-
-    subgraph collab["协作支撑层 - 基础设施"]
-        UGW["using-git-worktrees<br/>工作区隔离"]
-        DPA["dispatching-parallel-agents<br/>并行派发"]
-        RCR2["receiving-code-review<br/>收到审查反馈的处理"]
-    end
-
-    entry --> process
-    cross -.->|"嵌入拦截"| process
-    collab -->|"提供环境"| process
-    meta -->|"创建方法论"| entry
-    meta -->|"创建方法论"| process
-    meta -->|"创建方法论"| cross
-
-    style meta fill:#f3e8ff,stroke:#7c3aed
-    style entry fill:#fef3c7,stroke:#d97706
-    style process fill:#dbeafe,stroke:#2563eb
-    style cross fill:#dcfce7,stroke:#16a34a
-    style collab fill:#fef3c7,stroke:#d97706
+```
+superpowers/5.1.0/skills/
+├── using-superpowers/          ← 入口：每句对话最先检查
+│   └── SKILL.md
+├── brainstorming/              ← 过程 1/6：想法 → 设计
+│   ├── SKILL.md
+│   └── visual-companion.md
+├── writing-plans/              ← 过程 2/6：设计 → 计划
+│   └── SKILL.md
+├── executing-plans/            ← 过程 3/6：计划执行（新 session）
+│   └── SKILL.md
+├── subagent-driven-development/ ← 过程 3/6 分支：计划执行（同 session）
+│   ├── SKILL.md
+│   ├── implementer-prompt.md
+│   ├── spec-reviewer-prompt.md
+│   └── code-quality-reviewer-prompt.md
+├── requesting-code-review/     ← 过程 4/6：代码审查
+│   └── SKILL.md
+├── finishing-a-development-branch/ ← 过程 5/6：合入决策
+│   └── SKILL.md
+├── test-driven-development/    ← 横切约束：无测试不代码
+│   ├── SKILL.md
+│   └── testing-anti-patterns.md
+├── verification-before-completion/ ← 横切约束：无验证不声称
+│   └── SKILL.md
+├── systematic-debugging/       ← 横切约束：无根因不修复
+│   ├── SKILL.md
+│   ├── root-cause-tracing.md
+│   ├── defense-in-depth.md
+│   └── condition-based-waiting.md
+├── receiving-code-review/      ← 协作支撑：审查反馈处理
+│   └── SKILL.md
+├── dispatching-parallel-agents/ ← 协作支撑：并行派发
+│   └── SKILL.md
+├── using-git-worktrees/        ← 协作支撑：工作区隔离
+│   └── SKILL.md
+└── writing-skills/             ← 元技能：创建 skill 的方法论
+    ├── SKILL.md
+    ├── anthropic-best-practices.md
+    ├── persuasion-principles.md
+    └── testing-skills-with-subagents.md
 ```
 
-> **阅读提示**：本文按"由浅入深"组织——先用架构总览建立全局认知，再逐层深入，最后讲设计模式和元技能。建议按顺序阅读，每章约 5-10 分钟。
+> **阅读提示**：本文按"由浅入深"组织——先建立全局架构认知，再逐层深入到源码级别。每个设计论述都会**引用原始 SKILL.md 源码**作为证据。建议按顺序阅读。

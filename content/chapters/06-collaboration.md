@@ -1,105 +1,81 @@
-# 第六章：协作支撑 — 基础设施
+# 第六章：协作支撑 — 基础设施的源码分析
 
-## 最后一层：不是约束，而是环境
-
-前三层（入口、过程、约束）都是在"告诉 agent 该做什么"。第四层不同——它提供的是**物理环境**：隔离的工作区、并行的能力、反馈响应的规范。
-
-没有这一层，上面的所有流程都可能因为环境混乱而崩溃。
+前三层（入口、过程、约束）是"告诉 agent 做什么"。第四层不同——它提供**物理环境**：隔离的工作区、并行的能力、反馈响应的规范。
 
 ---
 
 ## using-git-worktrees — 隔离而非切换
 
-### 解决的问题
+### 从 subagent-driven-development 看依赖
 
+```markdown
+**Required workflow skills:**
+- superpowers:using-git-worktrees - Ensures isolated workspace (creates one or verifies existing)
 ```
-你正在 feature-A 分支写代码 → 突然需要切回 main 修紧急 bug
-→ git stash → checkout main → 修复 → checkout feature-A → pop stash
-→ CONFLICT
-```
+
+**为什么 worktree 是前置条件**：subagent-driven-development 为每个 task 派发一个新的 subagent。如果所有 subagent 共享同一个工作目录，文件系统级别的冲突不可避免。Worktree 给每个 agent 提供独立的物理空间。
 
 ### 核心理念
 
-**不是在不同分支间切换，而是让不同分支同时存在。**
-
-```mermaid
-graph TB
-    MAIN["main 分支<br/>原始工作区"] --- WT1["worktree: feature-A<br/>~/project/feature-a/"]
-    MAIN --- WT2["worktree: bugfix<br/>~/project/bugfix/"]
-    MAIN --- WT3["worktree: feature-B<br/>~/project/feature-b/"]
-```
-
-每个 worktree 有独立的工作目录和分支。不需要 stash/checkout/冲突解决。一个终端开一个 worktree，每个 agent 有自己的空间。
-
-### 为什么它是过程链的前置条件
-
-executing-plans 和 subagent-driven-development 都假设有隔离的工作环境。如果没有 worktree：
-- 多个 subagent 可能在同一目录写入冲突
-- 一个 subagent 的修改会影响另一个
-- 上下文污染从"逻辑"层面扩展到"文件系统"层面
+不是在不同分支间切换（stash → checkout → pop），而是让不同分支**同时存在**在不同的目录中。这从根本上消除了 stash/pop 的痛点。
 
 ---
 
-## dispatching-parallel-agents — 独立任务的并行派发
+## dispatching-parallel-agents — 独立任务并行
 
-### 适用条件
+### 核心条件
 
-两个任务可以并行当且仅当：**无共享状态 + 无顺序依赖**。
-
-```mermaid
-graph LR
-    MAIN["主 session"] --> A["Agent A<br/>Task 1: 前端组件"]
-    MAIN --> B["Agent B<br/>Task 2: API 接口"]
-    MAIN --> C["Agent C<br/>Task 3: 数据库迁移"]
-
-    A --> MAIN
-    B --> MAIN
-    C --> MAIN
+```markdown
+When facing 2+ independent tasks that can be parallelized without shared state.
 ```
 
-### 关键设计：自包含 prompt
+**关键约束**："without shared state"——两个任务即使处理同一个文件的不同区域，如果有合并冲突的风险，就不是真正独立的。
 
-并行 agent 不共享上下文。每个 prompt 必须包含该 agent 完成工作所需的**全部信息**。
+### 自包含 prompt
 
-这看起来"冗余"——但冗余是隔离的必要代价。一个需要共享上下文的任务就不能并行。
+```markdown
+Craft self-contained prompts for each agent — they start with zero context,
+so each prompt must contain ALL information needed to complete the task.
+```
+
+**设计代价**：自包含 prompt 看起来"冗余"——但这是隔离的必要代价。一个需要共享上下文才能完成的任务就是不能并行的任务。
 
 ---
 
 ## receiving-code-review — 技术严谨 > 表面和谐
 
-### 解决的问题
+### 源码核心
 
-```
-收到 code review 反馈 → "好的我改" → 改完发现 reviewer 其实是错的
-收到模糊反馈 → 自己猜意思 → 猜错 → 白改
-```
-
-### 核心机制
-
-这个 skill 最独特的地方：**它给了 agent "反驳权"**。
-
-```
-收到反馈后不是立刻改，而是：
-1. 先理解：这条反馈想要解决什么问题？
-2. 不清晰？追问到清晰
-3. 反馈有问题？用证据反驳（测试结果、文档引用、设计决策）
-4. 理解后才开始实现
+```markdown
+When receiving code review feedback:
+1. First understand: what problem is this feedback trying to solve?
+2. If feedback is unclear → ask for clarification
+3. If feedback has issues → push back with evidence
+4. Only then implement
+5. After implementation, verify the fix addresses the original concern
 ```
 
-这区别于大多数 agent 的默认行为——"用户说了什么就改什么"。好的工程师不是盲目的执行者——他们对反馈进行技术判断。
+### 赋予 agent "反驳权"
+
+```markdown
+Do NOT blindly implement feedback. Receiving-code-review empowers the agent to
+question and push back — not blindly execute every review comment.
+```
+
+**这是这个 skill 最独特的设计**：它给了 agent 反驳审查意见的权利。大多数 agent 的默认行为是"用户/审查者说了什么就改什么"——但实际上审查者也可能犯错。Technical rigor over superficial harmony。
 
 ---
 
-## 全貌：四层协同
+## 全貌：四层协同架构
 
 ```mermaid
 graph TB
     subgraph M["元技能层"]
-        WS["writing-skills"]
+        WS["writing-skills<br/>TDD for 文档"]
     end
 
     subgraph E["入口层"]
-        US["using-superpowers"]
+        US["using-superpowers<br/>1% 规则 + 红牌表"]
     end
 
     subgraph P["过程管控层"]
@@ -110,15 +86,15 @@ graph TB
     end
 
     subgraph C["横切约束层"]
-        TDD_C["TDD"]
-        VBC_C["verification"]
-        SDB_C["debugging"]
+        TDD_C["TDD<br/>无测试不代码"]
+        VBC_C["verification<br/>无验证不声称"]
+        SDB_C["debugging<br/>无根因不修复"]
     end
 
     subgraph COL["协作支撑层"]
-        UGW["worktrees"]
-        DPA["parallel"]
-        RCV["receiving-review"]
+        UGW["worktrees<br/>隔离工作区"]
+        DPA["parallel<br/>并行派发"]
+        RCV["receiving-review<br/>反馈处理"]
     end
 
     E -->|"路由"| P
@@ -134,16 +110,19 @@ graph TB
     style COL fill:#fef3c7,stroke:#d97706
 ```
 
-## 你现在知道了什么
+---
 
-1. **四层架构**：入口 → 过程 → 约束 → 协作，每层不同的职责和关系类型
-2. **过程管控链**：brainstorming → writing-plans → executing → code-review → finishing，确定性路由
-3. **三个铁律**：TDD（无测试不代码）+ verification（无验证不声称）+ debugging（无根因不修复）
-4. **八个设计模式**：Iron Law、理性化表、红牌列表、Letter=Spirit、HARD-GATE、CSO、Terminal State、Subagent Isolation
-5. **元技能**：writing-skills = TDD for 文档，自指的自洽系统
+## 总结：你现在知道了什么
 
-**Superpowers 的本质**：它不是一套"给 AI 的建议"，而是一个**AI 行为操作系统**——提供了进程调度（入口层）、流水线（过程层）、约束检查（横切层）、资源隔离（协作层），以及编译器（元技能层）。
+1. **源码目录**：14 个 SKILL.md + 支持文件，分为四大分组
+2. **四层架构**：入口 → 过程 → 约束 → 协作，每层有不同职责和关系类型
+3. **过程管控链**：6 个 skill 的确定性路由流水线，每步有 `<HARD-GATE>`、checklist、terminal state
+4. **三个铁律**：TDD（无测试不代码）、verification（无验证不声称）、debugging（无根因不修复），每个有完整的防绕过设计
+5. **八个设计模式**：Iron Law、理性化表、红牌列表、Letter=Spirit、HARD-GATE、CSO、Terminal State、Subagent Isolation
+6. **元技能**：writing-skills = TDD for 文档，自指的自洽系统
+
+**Superpowers 的本质**：它不是一套"给 AI 的建议"，而是一个**AI 行为操作系统**——提供了进程调度（入口层）、流水线（过程层）、约束检查（横切层）、资源隔离（协作层），以及编译器（元技能层）。它的每一个设计决策都可以在源码中找到直接的证据。
 
 ---
 
-> **延伸阅读**：点击任意 skill 的 [深度文章](/article/writing-skills) 了解单个 skill 的设计细节。或者进入 [Writing Skills 4 章专项](/deep-dive) 深入掌握创建 skill 的方法论。
+> **延伸阅读**：每个 skill 的完整源码分析见 [深度文章](/article/writing-skills)，或 [Writing Skills 4 章专项](/deep-dive) 深入学习创建 skill 的方法论。
