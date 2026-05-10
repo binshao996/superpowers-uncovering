@@ -12,6 +12,7 @@ const chapters = [
   { id: '04-design-patterns', title: '第四章：设计模式目录 — 八个模式', number: '4' },
   { id: '05-meta-skill', title: '第五章：元技能深度走读 — writing-skills', number: '5' },
   { id: '06-collaboration', title: '第六章：协作支撑 — 基础设施', number: '6' },
+  { id: '07-methodology', title: '第七章：从0到1设计 Skill 系统的通用方法论', number: '7' },
 ]
 
 mermaid.initialize({
@@ -46,19 +47,47 @@ export default function ChapterReader() {
     })
   }, [])
 
-  // Run mermaid on all diagrams after content renders
+  // Run mermaid on all diagrams after content renders — retry until elements exist
   useEffect(() => {
     if (loading || !contentContainerRef.current) return
-    // Small delay to ensure DOM is settled
-    const timer = setTimeout(async () => {
-      try {
-        await mermaid.run({
-          nodes: contentContainerRef.current!.querySelectorAll('.mermaid'),
-        })
-      } catch (e) {
-        console.error('Mermaid run error:', e)
+
+    let attempts = 0
+    const maxAttempts = 8
+    let timer: ReturnType<typeof setTimeout>
+
+    const tryRun = async () => {
+      const container = contentContainerRef.current
+      if (!container) return
+
+      const nodes = container.querySelectorAll<HTMLElement>('.mermaid')
+      // Skip already-rendered diagrams
+      const unprocessed: HTMLElement[] = []
+      nodes.forEach(n => {
+        const svg = n.querySelector('svg')
+        if (!svg) unprocessed.push(n)
+        else {
+          // Reset failed renders so mermaid can retry them
+          const errorText = svg.textContent || ''
+          if (errorText.includes('图表渲染失败') || errorText.includes('syntax error')) {
+            n.innerHTML = n.getAttribute('data-mermaid-code') || ''
+            unprocessed.push(n)
+          }
+        }
+      })
+
+      if (unprocessed.length > 0) {
+        try {
+          await mermaid.run({ nodes: unprocessed })
+        } catch (e) {
+          console.error('Mermaid run error:', e)
+        }
+      } else if (attempts < maxAttempts) {
+        attempts++
+        timer = setTimeout(tryRun, 150 * attempts)
       }
-    }, 100)
+    }
+
+    timer = setTimeout(tryRun, 80)
     return () => clearTimeout(timer)
   }, [loading, contents])
 
@@ -134,7 +163,12 @@ export default function ChapterReader() {
                     const codeStr = String(children).replace(/\n$/, '')
                     if (match && match[1] === 'mermaid') {
                       // Render as raw mermaid element — mermaid.run() will process it
-                      return <div className="mermaid my-6 flex justify-center">{codeStr}</div>
+                      // data-mermaid-code stores original for retry on failed renders
+                      return (
+                        <div className="mermaid my-6 flex justify-center" data-mermaid-code={codeStr}>
+                          {codeStr}
+                        </div>
+                      )
                     }
                     const isInline = !match
                     return isInline ? (
