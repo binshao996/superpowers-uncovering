@@ -25,12 +25,98 @@ mermaid.initialize({
   },
 })
 
+let mermaidIdCounter = 0
+
+function MermaidDiagram({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string | null>(null)
+  const [error, setError] = useState(false)
+  const idRef = useRef(`mermaid-${mermaidIdCounter++}`)
+
+  useEffect(() => {
+    let cancelled = false
+    setError(false)
+
+    mermaid.render(idRef.current, code)
+      .then(({ svg: svgStr }) => {
+        if (!cancelled) setSvg(svgStr)
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          console.error('Mermaid render error:', e)
+          setError(true)
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [code])
+
+  if (error) {
+    return (
+      <div className="my-6 p-4 border border-red-200 bg-red-50 rounded-lg text-sm text-red-600">
+        图表渲染失败
+      </div>
+    )
+  }
+
+  if (svg) {
+    return (
+      <div
+        className="my-6 flex justify-center overflow-x-auto"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    )
+  }
+
+  return (
+    <div className="my-6 flex justify-center text-gray-400 text-sm py-8">
+      图表加载中...
+    </div>
+  )
+}
+
+// Module-level component overrides — stable reference prevents re-renders
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const markdownComponents: any = {
+  pre({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) {
+    // If the only child is a mermaid wrapper, render without <pre> wrapper
+    const child = children as { props?: { className?: string } } | undefined
+    if (child?.props?.className?.includes('mermaid-wrapper')) {
+      return children
+    }
+    return (
+      <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm" {...props}>
+        {children}
+      </pre>
+    )
+  },
+  code({ className, children, ...props }: { className?: string; children?: React.ReactNode; [key: string]: unknown }) {
+    const match = /language-(\w+)/.exec(className || '')
+    const codeStr = String(children).replace(/\n$/, '')
+    if (match && match[1] === 'mermaid') {
+      return (
+        <div className="mermaid-wrapper">
+          <MermaidDiagram code={codeStr} />
+        </div>
+      )
+    }
+    const isInline = !match
+    return isInline ? (
+      <code className="bg-slate-100 px-1 py-0.5 rounded text-sm text-rose-600" {...props}>
+        {children}
+      </code>
+    ) : (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    )
+  },
+}
+
 export default function ChapterReader() {
   const [contents, setContents] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [activeChapter, setActiveChapter] = useState('00-preface')
   const chapterRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const contentContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     Promise.all(
@@ -46,50 +132,6 @@ export default function ChapterReader() {
       setLoading(false)
     })
   }, [])
-
-  // Run mermaid on all diagrams after content renders — retry until elements exist
-  useEffect(() => {
-    if (loading || !contentContainerRef.current) return
-
-    let attempts = 0
-    const maxAttempts = 8
-    let timer: ReturnType<typeof setTimeout>
-
-    const tryRun = async () => {
-      const container = contentContainerRef.current
-      if (!container) return
-
-      const nodes = container.querySelectorAll<HTMLElement>('.mermaid')
-      // Skip already-rendered diagrams
-      const unprocessed: HTMLElement[] = []
-      nodes.forEach(n => {
-        const svg = n.querySelector('svg')
-        if (!svg) unprocessed.push(n)
-        else {
-          // Reset failed renders so mermaid can retry them
-          const errorText = svg.textContent || ''
-          if (errorText.includes('图表渲染失败') || errorText.includes('syntax error')) {
-            n.innerHTML = n.getAttribute('data-mermaid-code') || ''
-            unprocessed.push(n)
-          }
-        }
-      })
-
-      if (unprocessed.length > 0) {
-        try {
-          await mermaid.run({ nodes: unprocessed })
-        } catch (e) {
-          console.error('Mermaid run error:', e)
-        }
-      } else if (attempts < maxAttempts) {
-        attempts++
-        timer = setTimeout(tryRun, 150 * attempts)
-      }
-    }
-
-    timer = setTimeout(tryRun, 80)
-    return () => clearTimeout(timer)
-  }, [loading, contents])
 
   // Track active chapter on scroll
   useEffect(() => {
@@ -147,7 +189,7 @@ export default function ChapterReader() {
       </aside>
 
       {/* Content */}
-      <main ref={contentContainerRef} className="flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8 md:py-12">
+      <main className="flex-1 min-w-0 max-w-3xl mx-auto px-6 py-8 md:py-12">
         {chapters.map((ch, idx) => (
           <div key={ch.id}>
             <div
@@ -157,31 +199,7 @@ export default function ChapterReader() {
             <article className="prose prose-slate max-w-none">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                components={{
-                  code({ className, children, ...props }) {
-                    const match = /language-(\w+)/.exec(className || '')
-                    const codeStr = String(children).replace(/\n$/, '')
-                    if (match && match[1] === 'mermaid') {
-                      // Render as raw mermaid element — mermaid.run() will process it
-                      // data-mermaid-code stores original for retry on failed renders
-                      return (
-                        <div className="mermaid my-6 flex justify-center" data-mermaid-code={codeStr}>
-                          {codeStr}
-                        </div>
-                      )
-                    }
-                    const isInline = !match
-                    return isInline ? (
-                      <code className="bg-slate-100 px-1 py-0.5 rounded text-sm text-rose-600" {...props}>
-                        {children}
-                      </code>
-                    ) : (
-                      <pre className="bg-slate-800 text-slate-100 p-4 rounded-lg overflow-x-auto text-sm">
-                        <code className={className} {...props}>{children}</code>
-                      </pre>
-                    )
-                  }
-                }}
+                components={markdownComponents}
               >
                 {contents[ch.id] || ''}
               </ReactMarkdown>
