@@ -1,0 +1,202 @@
+{
+  "nodes": [
+    {
+      "id": "brainstorming",
+      "label": "brainstorming",
+      "group": "process",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "有想法但未成形，开始任何新功能前",
+        "summary": "通过自然对话将想法转化为完整设计，在写代码前获得用户对设计的认可",
+        "problem": "盲目编码、方向错误、需求理解偏差",
+        "before": null,
+        "after": "writing-plans"
+      }
+    },
+    {
+      "id": "writing-plans",
+      "label": "writing-plans",
+      "group": "process",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "有 spec/需求，多步骤任务，写代码前",
+        "summary": "将设计文档转化为详细的、分步骤的实现计划，每个步骤2-5分钟可完成",
+        "problem": "盲目编码、遗漏步骤、范围蔓延",
+        "before": "brainstorming",
+        "after": "executing-plans"
+      }
+    },
+    {
+      "id": "executing-plans",
+      "label": "executing-plans",
+      "group": "process",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "有实现的计划，需要在单独的session中按任务执行",
+        "summary": "按照实现计划逐任务执行，在检查点进行审查，确保每个任务正确完成",
+        "problem": "计划执行走样、跳过检查点、任务间状态混乱",
+        "before": "writing-plans",
+        "after": "requesting-code-review"
+      }
+    },
+    {
+      "id": "subagent-driven-development",
+      "label": "subagent-driven-development",
+      "group": "process",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "有包含独立任务的实现计划，在当前session中执行",
+        "summary": "每个任务派发一个新subagent，任务间进行两阶段代码审查（spec合规+代码质量）",
+        "problem": "上下文污染、任务间依赖混乱、缺少审查环节",
+        "before": "executing-plans",
+        "after": "requesting-code-review"
+      }
+    },
+    {
+      "id": "requesting-code-review",
+      "label": "requesting-code-review",
+      "group": "process",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "完成实现任务后，合并或PR之前",
+        "summary": "派遣专门的code-reviewer agent检查工作是否满足需求、代码质量",
+        "problem": "未验证的代码直接合入、需求遗漏、质量问题",
+        "before": "subagent-driven-development",
+        "after": "finishing-a-development-branch"
+      }
+    },
+    {
+      "id": "finishing-a-development-branch",
+      "label": "finishing-a-development-branch",
+      "group": "process",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "实现完成、所有测试通过，需要决定如何合入",
+        "summary": "引导完成开发工作的合入决策：合并、PR或清理，提供结构化选项",
+        "problem": "合入方式选择困难、清理不彻底、分支管理混乱",
+        "before": "requesting-code-review",
+        "after": null
+      }
+    },
+    {
+      "id": "test-driven-development",
+      "label": "test-driven-development",
+      "group": "discipline",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "实现任何功能或bug修复，写实现代码之前",
+        "summary": "强制执行RED-GREEN-REFACTOR循环：先写失败测试→最小实现→重构",
+        "problem": "没有测试的代码、测试后补缺乏约束力、重构无安全网",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "verification-before-completion",
+      "label": "verification-before-completion",
+      "group": "discipline",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "准备声称工作完成、修复完成、测试通过，提交或创建PR之前",
+        "summary": "在做出任何成功声明前，必须运行验证命令并确认输出——证据先于断言",
+        "problem": "虚假完成声明、未验证的'应该可以了'、信任未经验证的agent报告",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "systematic-debugging",
+      "label": "systematic-debugging",
+      "group": "discipline",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "遇到任何bug、测试失败、非预期行为，在提出修复方案之前",
+        "summary": "系统性地追溯根因而非打补丁：条件等待→根因追踪→深度防御",
+        "problem": "症状修复而非根因修复、补丁式调试、重复bug",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "receiving-code-review",
+      "label": "receiving-code-review",
+      "group": "collaboration",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "收到code review反馈，在实现建议之前",
+        "summary": "要求技术严谨和验证，而非表演性同意或盲目实现——对不清晰的反馈追问到底",
+        "problem": "盲目接受review建议、未验证就改、不理解反馈意图",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "dispatching-parallel-agents",
+      "label": "dispatching-parallel-agents",
+      "group": "collaboration",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "面对2个以上独立任务，可以并行工作而不需要共享状态",
+        "summary": "将多个独立任务并行派发给多个agent，大幅提升效率",
+        "problem": "串行执行独立任务浪费时间、上下文切换成本",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "using-git-worktrees",
+      "label": "using-git-worktrees",
+      "group": "collaboration",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "开始需要隔离的功能开发，或执行实现计划之前",
+        "summary": "创建隔离的git worktree确保工作空间独立，不影响当前分支",
+        "problem": "工作区污染、分支切换成本、并行开发冲突",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "using-superpowers",
+      "label": "using-superpowers",
+      "group": "meta",
+      "skillType": "rigid",
+      "l1": {
+        "trigger": "开始任何对话——建立如何查找和使用skills的方法",
+        "summary": "superpowers的入口说明书：在任何回复前必须先检查并调用相关skill",
+        "problem": "不知道该用哪个skill、忽略skill、手动做skill能做的事",
+        "before": null,
+        "after": null
+      }
+    },
+    {
+      "id": "writing-skills",
+      "label": "writing-skills",
+      "group": "meta",
+      "skillType": "flexible",
+      "l1": {
+        "trigger": "创建新skill、编辑已有skill、验证skill在部署前能正常工作",
+        "summary": "用TDD方法创建skill：压测场景→基线失败→写skill→验证通过→关闭漏洞",
+        "problem": "skill写得不好AI不用、有漏洞被绕过、未测试就部署",
+        "before": null,
+        "after": null
+      }
+    }
+  ],
+  "edges": [
+    {"from": "brainstorming", "to": "writing-plans", "relation": "sequential"},
+    {"from": "writing-plans", "to": "executing-plans", "relation": "sequential"},
+    {"from": "executing-plans", "to": "subagent-driven-development", "relation": "sequential"},
+    {"from": "subagent-driven-development", "to": "requesting-code-review", "relation": "sequential"},
+    {"from": "requesting-code-review", "to": "finishing-a-development-branch", "relation": "sequential"},
+    {"from": "test-driven-development", "to": "writing-skills", "relation": "inherits"},
+    {"from": "verification-before-completion", "to": "executing-plans", "relation": "embeds"},
+    {"from": "verification-before-completion", "to": "writing-plans", "relation": "embeds"},
+    {"from": "systematic-debugging", "to": "test-driven-development", "relation": "embeds"},
+    {"from": "using-superpowers", "to": "brainstorming", "relation": "embeds"},
+    {"from": "using-superpowers", "to": "systematic-debugging", "relation": "embeds"},
+    {"from": "receiving-code-review", "to": "requesting-code-review", "relation": "embeds"},
+    {"from": "dispatching-parallel-agents", "to": "subagent-driven-development", "relation": "embeds"},
+    {"from": "using-git-worktrees", "to": "executing-plans", "relation": "embeds"}
+  ]
+}
